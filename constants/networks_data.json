@@ -1,5 +1,5 @@
 {
-  "Optimism": {
+  "OPTIMISM": {
     "chain_id": 10,
     "rpc_url": "https://optimism.llamarpc.com",
     "explorer_url": "https://optimistic.etherscan.io/",
@@ -15,7 +15,7 @@
     "wrapped_token": "0xBB4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
     "decimals": 18
   },
-  "Polygon": {
+  "POLYGON": {
     "chain_id": 137,
     "rpc_url": "https://polygon.llamarpc.com",
     "explorer_url": "https://polygonscan.com/",

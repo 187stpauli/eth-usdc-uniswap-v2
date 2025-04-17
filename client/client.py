@@ -151,10 +151,12 @@ class Client:
         ]
         contract = self.w3.eth.contract(
             address=self.w3.to_checksum_address(self.from_address), abi=erc20_abi)
-
-        balance = await contract.functions.balanceOf(self.address).call()
-
-        return balance
+        try:
+            balance = await contract.functions.balanceOf(self.address).call()
+            return balance
+        except Exception as e:
+            logger.error(f"Ошибка при получении баланса ERC20: {e}")
+            return 0
 
     # Создание объекта контракт для дальнейшего обращения к нему
     async def get_contract(self, contract_address: str, abi: list) -> AsyncContract:
@@ -164,13 +166,18 @@ class Client:
 
     # Получение суммы газа за транзакцию
     async def get_tx_fee(self) -> int:
-        fee_history = await self.w3.eth.fee_history(10, "latest", [50])
-        base_fee = fee_history['baseFeePerGas'][-1]
-        max_priority_fee = await self.w3.eth.max_priority_fee
-        estimated_gas = 70_000
-        max_fee_per_gas = (base_fee + max_priority_fee) * estimated_gas
+        try:
+            fee_history = await self.w3.eth.fee_history(10, "latest", [50])
+            base_fee = fee_history['baseFeePerGas'][-1]
+            max_priority_fee = await self.w3.eth.max_priority_fee
+            estimated_gas = 70_000
+            max_fee_per_gas = (base_fee + max_priority_fee) * estimated_gas
 
-        return max_fee_per_gas
+            return max_fee_per_gas
+        except Exception as e:
+            logger.warning(f"Ошибка при расчёте комиссии, используем fallback: {e}")
+            fallback_gas_price = await self.w3.eth.gas_price
+            return fallback_gas_price * 70_000
 
     # Преобразование в веи
     def to_wei_main(self, number: int | float, decimals: int):
@@ -201,12 +208,14 @@ class Client:
         token_address = self.w3.to_checksum_address(token_address)
         spender = self.w3.to_checksum_address(spender)
         contract = await self.get_contract(token_address, ERC20_ABI)
-
-        tx_data = contract.encodeABI(
-            fn_name="approve",
-            args=[spender, amount]
-        )
-
+        try:
+            tx_data = contract.encodeABI(
+                fn_name="approve",
+                args=[spender, amount]
+            )
+        except Exception as e:
+            logger.error(f"Ошибка при формировании approve транзакции: {e}")
+            raise
         tx = await self.prepare_tx()
         tx.update({
             "to": token_address,
@@ -268,18 +277,22 @@ class Client:
 
     # Подпись и отправка транзакции
     async def sign_and_send_tx(self, transaction: TxParams, without_gas: bool = False):
-        if not without_gas:
-            transaction["gas"] = int((await self.w3.eth.estimate_gas(transaction)) * 1.5)
+        try:
+            if not without_gas:
+                transaction["gas"] = int((await self.w3.eth.estimate_gas(transaction)) * 1.5)
 
-        signed = self.w3.eth.account.sign_transaction(transaction, self.private_key)
-        signed_raw_tx = signed.raw_transaction
-        logger.info("Транзакция подписана\n")
+            signed = self.w3.eth.account.sign_transaction(transaction, self.private_key)
+            signed_raw_tx = signed.raw_transaction
+            logger.info("Транзакция подписана\n")
 
-        tx_hash_bytes = await self.w3.eth.send_raw_transaction(signed_raw_tx)
-        tx_hash_hex = self.w3.to_hex(tx_hash_bytes)
-        logger.info("Транзакция отправлена: %s\n", tx_hash_hex)
+            tx_hash_bytes = await self.w3.eth.send_raw_transaction(signed_raw_tx)
+            tx_hash_hex = self.w3.to_hex(tx_hash_bytes)
+            logger.info("Транзакция отправлена: %s\n", tx_hash_hex)
 
-        return tx_hash_hex
+            return tx_hash_hex
+        except Exception as e:
+            logger.error(f"Ошибка при отправке транзакции: {e}")
+            return None
 
     # Ожидание результата транзакции
     async def wait_tx(self, tx_hash: Union[str, HexBytes], explorer_url: Optional[str] = None) -> bool:
@@ -307,3 +320,6 @@ class Client:
                     return False
                 total_time += poll_latency
                 await asyncio.sleep(poll_latency)
+            except Exception as e:
+                logger.error(f"Ошибка при получении receipt: {e}")
+                return False

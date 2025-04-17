@@ -132,7 +132,7 @@ class ConfigValidator:
     async def validate_network(network: str) -> None:
         """Валидация названия сети"""
         networks = [
-            "Optimism", "BSC", "Polygon", "ARBITRUM"
+            "OPTIMISM", "BSC", "POLYGON", "ARBITRUM"
         ]
         if network not in networks:
             logging.error("Ошибка: Неподдерживаемая сеть! Введите одну из поддерживаемых сетей.")
